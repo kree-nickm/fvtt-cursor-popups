@@ -1,0 +1,15 @@
+{
+    "name": "cursor-popups",
+    "title": "Cursor Popups",
+    "description": "<p>Causes a predetermined icon to appear at your cursor when you hold down a key, visible to all other players.</p>",
+    "version": "1.0.0",
+    "author": "Kryand",
+    "scripts": ["./cursor-popups.js"],
+    "styles": [],
+    "packs": [],
+    "url": "",
+    "manifest": "",
+    "download": "",
+    "minimumCoreVersion": "0.7.5",
+    "compatibleCoreVersion": "0.7.7"
+}
