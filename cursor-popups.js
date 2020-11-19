@@ -34,7 +34,7 @@ const cursorIcons = [
    },
 ];
 
-// TODO: Every Foundry VTT update, check to make sure these ControlsLayer functions we are overwriting didn't change.
+// Note: Every Foundry VTT update, check to make sure these three functions we are overwriting didn't change in a way that we care about.
 ControlsLayer.prototype.drawCursors = function()
 {
    if(this.cursors)
@@ -45,21 +45,33 @@ ControlsLayer.prototype.drawCursors = function()
    this.cursors = this.addChild(new PIXI.Container());
    for (let u of game.users.entities.filter(u => u.active))
    {
-      let cursor = this.drawCursor(u);
-      cursor.dot = cursor.children[0];
-      cursor.name = cursor.children[1];
-      for(let icon of cursorIcons)
-      {
-         cursor[`icon${icon.slug}`] = cursor.addChild(new PIXI.Graphics());
-         icon.draw(cursor[`icon${icon.slug}`], 0, 0, 2);
-         cursor[`icon${icon.slug}`].visible = false;
-      }
-      cursor.dot.visible = u !== game.user;
-      cursor.name.visible = u !== game.user;
+      this.drawCursor(u);
    }
 };
 
-ControlsLayer.prototype.updateCursor = function(user, position) {
+ControlsLayer.prototype.drawCursor = function(user)
+{
+   if(user._id in this._cursors)
+   {
+      this._cursors[user._id].destroy({children: true});
+      delete this._cursors[user._id];
+   }
+   let cursor = this._cursors[user._id] = this.cursors.addChild(new Cursor(user));
+   cursor.dot = cursor.children[0];
+   cursor.name = cursor.children[1];
+   for(let icon of cursorIcons)
+   {
+      cursor[`icon${icon.slug}`] = cursor.addChild(new PIXI.Graphics());
+      icon.draw(cursor[`icon${icon.slug}`], 0, 0, 2);
+      cursor[`icon${icon.slug}`].visible = false;
+   }
+   cursor.dot.visible = user !== game.user;
+   cursor.name.visible = user !== game.user;
+   return cursor;
+}
+
+ControlsLayer.prototype.updateCursor = function(user, position)
+{
    if (!this.cursors)
       return;
    const cursor = this._cursors[user._id] || this.drawCursor(user);
@@ -85,6 +97,43 @@ ControlsLayer.prototype.updateCursor = function(user, position) {
    cursor.target = {x: position.x || 0, y: position.y || 0};
 };
 
+Cursor.prototype._oldAnimate = Cursor.prototype._animate;
+Cursor.prototype._animate = function()
+{
+   if(!this.dot || this.dot.visible)
+      this._oldAnimate();
+   else
+   {
+      let easing = game.settings.get("cursor-popups", "easing");
+      let dx = this.target.x - this.x;
+      let dy = this.target.y - this.y;
+      let edx = dx / easing;
+      let edy = dy / easing;
+      let minMove = 10 / easing;
+      let dist2 = dx*dx + dy*dy;
+      let edist2 = edx*edx + edy*edy;
+      if(edist2 >= minMove*minMove)
+      {
+         this.x += edx;
+         this.y += edy;
+      }
+      else
+      {
+         let factor = Math.sqrt(edist2 / (minMove*minMove));
+         if(factor > 0.1)
+         {
+            this.x += factor*edx;
+            this.y += factor*edy;
+         }
+         else
+         {
+            this.x = this.target.x;
+            this.y = this.target.y;
+         }
+      }
+   }
+};
+
 Hooks.once("init", () => {
    for(let icon of cursorIcons)
    {
@@ -104,11 +153,26 @@ Hooks.once("init", () => {
       hint: "Should your own icons be shown to you?",
       scope: "client",
       config: true,
-      default: false,
+      default: true,
       type: Boolean,
+   });
+   
+   game.settings.register("cursor-popups", "easing", {
+      name: "Movement Easing",
+      hint: "How much smoothing should be applied to cursor movement.",
+      scope: "client",
+      config: true,
+      range: {
+         min: 1,
+         max: 10,
+         step: 1
+      },
+      default: 5,
+      type: Number,
    });
 });
 
+// TODO: Rarely, someone's mouse cursor can be desynced. Try to add some code to rectify that when an icon button is pressed.
 Hooks.once("ready", async () => {
    // There's a KeyboardManager class that handles Foundry's keybinds, but it's pretty much useless to modules.
    window.addEventListener("keydown", event => {
@@ -157,7 +221,7 @@ Hooks.on("updateUser", async (user, data, options, userId) => {
             if(canvas.controls._cursors[userId])
             {
                canvas.controls._cursors[userId].dot.visible = false;
-               canvas.controls._cursors[userId].name.visible = false;
+               canvas.controls._cursors[userId].name.visible = true;
                for(let icon2 of cursorIcons)
                   canvas.controls._cursors[userId][`icon${icon2.slug}`].visible = false;
                canvas.controls._cursors[userId][`icon${icon.slug}`].visible = true;
@@ -185,11 +249,6 @@ Hooks.on("canvasReady", async () => {
    canvas.stage.on("mousemove", event => {
       if(game.settings.get("cursor-popups", "showSelf"))
       {
-         // Throttle cursor position updates to 100ms per tick
-         /*let now = Date.now();
-         if ((now - lastCursor) < 100) return;
-         lastCursor = now;*/
-         
          let coords = event.data.getLocalPosition(canvas.controls);
          if(coords)
             canvas.controls.updateCursor(game.user, coords);
