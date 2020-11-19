@@ -4,6 +4,12 @@ Causes a predetermined icon to appear at your cursor when you hold down a key, v
 
 Pressing the key replaces the normal player cursors that are usually visible, so those must be enabled in order for a player to use this feature.
 
+## Installation
+In the Foundry VTT module manager, click the Install Module button and paste this URL into the Manifest URL box, then click Install: `https://raw.githubusercontent.com/kree-nickm/fvtt-cursor-popups/main/module.json`
+
 ## Future Changes
 * Allow the GM to add their own popup icons, either through an image or by using the canvas drawing methods.
 * Make the popup more responsive when it's visible. Right now the cursor doesn't follow the user's actual mouse movements, which is fine normally, but might get confusing if it results in the popup being in the wrong place.
+
+## Compatibility
+Won't work with any module that overwrites `ControlsLayer.prototype.drawCursors` or `ControlsLayer.prototype.updateCursor` and will potentially not work properly with any module that changes the appearance of other players' cursors.
