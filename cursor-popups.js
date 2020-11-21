@@ -62,7 +62,7 @@ ControlsLayer.prototype.drawCursor = function(user)
    for(let icon of cursorIcons)
    {
       cursor[`icon${icon.slug}`] = cursor.addChild(new PIXI.Graphics());
-      icon.draw(cursor[`icon${icon.slug}`], 0, 0, 2);
+      icon.draw(cursor[`icon${icon.slug}`], 0, 0, game.settings.get("cursor-popups", "size"));
       cursor[`icon${icon.slug}`].visible = false;
    }
    cursor.dot.visible = user !== game.user;
@@ -169,6 +169,23 @@ Hooks.once("init", () => {
       },
       default: 5,
       type: Number,
+   });
+   
+   game.settings.register("cursor-popups", "size", {
+      name: "Popup Size",
+      hint: "Size multiplier for the icons.",
+      scope: "client",
+      config: true,
+      range: {
+         min: 0.1,
+         max: 3,
+         step: 0.1
+      },
+      default: 2,
+      type: Number,
+      onChange: (val) => {
+         canvas.controls.drawCursors();
+      },
    });
 });
 
