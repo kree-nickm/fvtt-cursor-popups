@@ -1,8 +1,8 @@
 {
    "name": "cursor-popups",
    "title": "Cursor Popups",
-   "description": "<p>Causes a predetermined icon to appear at your cursor when you hold down a key, visible to all other players.</p>",
-   "version": "0.0.5",
+   "description": "Causes a predetermined icon to appear at your cursor when you hold down a key, visible to all other players.",
+   "version": "0.1.0",
    "author": "Kryand",
    "scripts": ["./cursor-popups.js"],
    "styles": [],
@@ -10,6 +10,15 @@
    "url": "https://github.com/kree-nickm/fvtt-cursor-popups",
    "manifest": "https://raw.githubusercontent.com/kree-nickm/fvtt-cursor-popups/main/module.json",
    "download": "https://github.com/kree-nickm/fvtt-cursor-popups/archive/main.zip",
-   "minimumCoreVersion": "0.7.5",
-   "compatibleCoreVersion": "0.7.7"
+   "changelog": "https://github.com/kree-nickm/fvtt-cursor-popups/blob/main/CHANGELOG.md",
+   "bugs": "https://github.com/kree-nickm/fvtt-cursor-popups/issues",
+   "readme": "README.md",
+   "license": "LICENSE",
+   "minimumCoreVersion": "0.8.0",
+   "compatibleCoreVersion": "0.8.9",
+   "dependencies": [
+      {
+      "name": "lib-wrapper"
+      }
+   ]
 }

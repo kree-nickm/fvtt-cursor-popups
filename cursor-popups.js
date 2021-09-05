@@ -34,106 +34,6 @@ const cursorIcons = [
    },
 ];
 
-// Note: Every Foundry VTT update, check to make sure these three functions we are overwriting didn't change in a way that we care about.
-ControlsLayer.prototype.drawCursors = function()
-{
-   if(this.cursors)
-   {
-      this.cursors.destroy({children: true});
-      this.cursors = null;
-   }
-   this.cursors = this.addChild(new PIXI.Container());
-   for (let u of game.users.entities.filter(u => u.active))
-   {
-      this.drawCursor(u);
-   }
-};
-
-ControlsLayer.prototype.drawCursor = function(user)
-{
-   if(user._id in this._cursors)
-   {
-      this._cursors[user._id].destroy({children: true});
-      delete this._cursors[user._id];
-   }
-   let cursor = this._cursors[user._id] = this.cursors.addChild(new Cursor(user));
-   cursor.dot = cursor.children[0];
-   cursor.name = cursor.children[1];
-   for(let icon of cursorIcons)
-   {
-      cursor[`icon${icon.slug}`] = cursor.addChild(new PIXI.Graphics());
-      icon.draw(cursor[`icon${icon.slug}`], 0, 0, game.settings.get("cursor-popups", "size"));
-      cursor[`icon${icon.slug}`].visible = false;
-   }
-   cursor.dot.visible = user !== game.user;
-   cursor.name.visible = user !== game.user;
-   return cursor;
-}
-
-ControlsLayer.prototype.updateCursor = function(user, position)
-{
-   if (!this.cursors)
-      return;
-   const cursor = this._cursors[user._id] || this.drawCursor(user);
-
-   // Ignore cursors on other Scenes
-   if((position === null) || (user.viewedScene !== canvas.scene._id))
-   {
-      if(cursor)
-         cursor.visible = false;
-      return;
-   }
-
-   // Ignore cursors for users who are not permitted to share
-   if(user === game.user && !game.settings.get("cursor-popups", "showSelf") || !user.hasPermission("SHOW_CURSOR"))
-   {
-      if(cursor)
-         cursor.visible = false;
-      return;
-   }
-
-   // Show the cursor in its currently tracked position
-   cursor.visible = true;
-   cursor.target = {x: position.x || 0, y: position.y || 0};
-};
-
-Cursor.prototype._oldAnimate = Cursor.prototype._animate;
-Cursor.prototype._animate = function()
-{
-   if(!this.dot || this.dot.visible)
-      this._oldAnimate();
-   else
-   {
-      let easing = game.settings.get("cursor-popups", "easing");
-      let dx = this.target.x - this.x;
-      let dy = this.target.y - this.y;
-      let edx = dx / easing;
-      let edy = dy / easing;
-      let minMove = 10 / easing;
-      let dist2 = dx*dx + dy*dy;
-      let edist2 = edx*edx + edy*edy;
-      if(edist2 >= minMove*minMove)
-      {
-         this.x += edx;
-         this.y += edy;
-      }
-      else
-      {
-         let factor = Math.sqrt(edist2 / (minMove*minMove));
-         if(factor > 0.1)
-         {
-            this.x += factor*edx;
-            this.y += factor*edy;
-         }
-         else
-         {
-            this.x = this.target.x;
-            this.y = this.target.y;
-         }
-      }
-   }
-};
-
 Hooks.once("init", () => {
    for(let icon of cursorIcons)
    {
@@ -147,7 +47,7 @@ Hooks.once("init", () => {
          type: String,
       });
    }
-   
+
    game.settings.register("cursor-popups", "showSelf", {
       name: "Show Your Own Icon?",
       hint: "Should your own icons be shown to you?",
@@ -187,6 +87,77 @@ Hooks.once("init", () => {
          canvas.controls.drawCursors();
       },
    });
+   
+   libWrapper.register("cursor-popups", "ControlsLayer.prototype.drawCursors", function(wrapped, ...args) {
+      let result = wrapped(...args);
+      // TODO: This probably doesn't need to be a loop since there should only be one, but w/e.
+      for(let u of game.users.contents.filter(u => u.active && u.isSelf))
+      {
+         this.drawCursor(u);
+      }
+      return result;
+   }, "WRAPPER");
+
+   libWrapper.register("cursor-popups", "ControlsLayer.prototype.drawCursor", function(wrapped, ...args) {
+      let cursor = wrapped(...args);
+      cursor.dot = cursor.children[0];
+      cursor.name = cursor.children[1];
+      for(let icon of cursorIcons)
+      {
+         cursor[`icon${icon.slug}`] = cursor.addChild(new PIXI.Graphics());
+         icon.draw(cursor[`icon${icon.slug}`], 0, 0, game.settings.get("cursor-popups", "size"));
+         cursor[`icon${icon.slug}`].visible = false;
+      }
+      cursor.dot.visible = args[0] !== game.user;
+      cursor.name.visible = args[0] !== game.user;
+      return cursor;
+   }, "WRAPPER");
+
+   libWrapper.register("cursor-popups", "ControlsLayer.prototype.updateCursor", function(wrapped, ...args) {
+      let result = wrapped(...args);
+      let cursor = this._cursors[args[0].id];
+      if(cursor && args[0] === game.user && game.settings.get("cursor-popups", "showSelf"))
+      {
+         cursor.visible = true;
+         cursor.target = {x: args[1].x || 0, y: args[1].y || 0};
+      }
+      return result;
+   }, "WRAPPER");
+   
+   libWrapper.register("cursor-popups", "Cursor.prototype._animate", function(wrapped, ...args) {
+      if(!this.dot || this.dot.visible)
+         wrapped(...args);
+      else
+      {
+         let easing = game.settings.get("cursor-popups", "easing");
+         let dx = this.target.x - this.x;
+         let dy = this.target.y - this.y;
+         let edx = dx / easing;
+         let edy = dy / easing;
+         let minMove = 10 / easing;
+         let dist2 = dx*dx + dy*dy;
+         let edist2 = edx*edx + edy*edy;
+         if(edist2 >= minMove*minMove)
+         {
+            this.x += edx;
+            this.y += edy;
+         }
+         else
+         {
+            let factor = Math.sqrt(edist2 / (minMove*minMove));
+            if(factor > 0.1)
+            {
+               this.x += factor*edx;
+               this.y += factor*edy;
+            }
+            else
+            {
+               this.x = this.target.x;
+               this.y = this.target.y;
+            }
+         }
+      }
+   }, "MIXED");
 });
 
 // TODO: Rarely, someone's mouse cursor can be desynced. Try to add some code to rectify that when an icon button is pressed.
@@ -207,7 +178,7 @@ Hooks.once("ready", async () => {
             {
                event.stopPropagation();
                event.preventDefault();
-               game.user.update({[`show${icon.slug}`]:true});
+               game.user.setFlag("cursor-popups", `show${icon.slug}`, true);
             }
          }
       }
@@ -216,12 +187,12 @@ Hooks.once("ready", async () => {
    window.addEventListener("keyup", event => {
       for(let icon of cursorIcons)
       {
-         if(game.user.data[`show${icon.slug}`])
+         if(game.user.getFlag("cursor-popups", `show${icon.slug}`))
          {
             let keys = game.settings.get("cursor-popups", `${icon.slug}Key`).split("+");
             if(event.code === keys[keys.length-1])
             {
-               game.user.update({[`show${icon.slug}`]:false});
+               game.user.setFlag("cursor-popups", `show${icon.slug}`, false);
             }
          }
       }
@@ -231,9 +202,9 @@ Hooks.once("ready", async () => {
 Hooks.on("updateUser", async (user, data, options, userId) => {
    for(let icon of cursorIcons)
    {
-      if(data.hasOwnProperty(`show${icon.slug}`))
+      if(typeof user.getFlag("cursor-popups", `show${icon.slug}`) !== 'undefined')
       {
-         if(data[`show${icon.slug}`])
+         if(user.getFlag("cursor-popups", `show${icon.slug}`))
          {
             if(canvas.controls._cursors[userId])
             {
